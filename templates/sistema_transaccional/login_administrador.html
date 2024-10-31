@@ -1,0 +1,6 @@
+<h1>Administradores</h1>
+<form action="{% url 'sistema_transaccional:login_administrador' %}" method="post">
+    {% csrf_token %}
+    {{ formulario }}
+    <input type="submit" value="Iniciar Sesión">
+</form>
