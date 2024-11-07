@@ -4,9 +4,8 @@ from . import views
 
 app_name = "sistema_transaccional"
 urlpatterns = [
-    path("", views.index, name="index"),
-    path("login/empleado/", views.login_empleado, name="login_empleado"),
-    path("empleado/<id_empleado>/<id_sesion>/", views.vista_empleado, name="vista_empleado"),
-    path("login/administrador/", views.login_administrador, name="login_administrador"),
-    path("administrador/<id_empleado>/<id_sesion>/", views.vista_administrador, name="vista_administrador"),
+    path("login/", views.login, name="login"),
+    path("logout/", views.logout, name="logout"),
+    path("empleado/", views.vista_empleado, name="vista_empleado"),
+    path("administrador/", views.vista_administrador, name="vista_administrador"),
 ]

@@ -1,7 +1,8 @@
 import uuid
-from turtledemo.sorting_animate import enable_keys
+from datetime import timedelta
 
-from django.db import models
+from django.db import models, IntegrityError
+from django.utils import timezone
 
 
 class Empleado(models.Model):
@@ -20,7 +21,7 @@ class Credencial(models.Model):
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, db_column="id_empleado")
     correo = models.TextField()
     clave = models.TextField()
-    estado = models.BooleanField()
+    estado = models.BooleanField(default=True)
 
     class Meta:
         db_table = "Credencial"
@@ -29,12 +30,13 @@ class Credencial(models.Model):
 
 
 class Sesion(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4(), editable=False)
-    crendencial = models.ForeignKey(Credencial, on_delete=models.CASCADE, db_column="id_crendencial")
-    fecha = models.DateField()
-    hora_inicial = models.TimeField()
-    hora_final = models.TimeField()
-    estado = models.BooleanField()
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    credencial = models.ForeignKey(Credencial, on_delete=models.CASCADE, db_column="id_crendencial")
+    fecha = models.DateField(default=timezone.localdate)
+    hora_inicial = models.TimeField(default=timezone.localtime)
+    fecha_hora_cierre = models.DateTimeField(null=True)
+    es_administrativa = models.BooleanField(default=False)
+    estado = models.BooleanField(default=True)
 
     class Meta:
         db_table = "Sesion"
@@ -57,6 +59,10 @@ class DetallePermiso(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, db_column="id_empleado")
     permiso = models.ForeignKey(Permiso, on_delete=models.CASCADE, db_column="id_permiso")
+    fecha_inicial = models.DateField(default=timezone.localdate)
+    fecha_terminacion = models.DateField(null=True)
+    fecha_final = models.DateField()
+    estado = models.BooleanField(default=True)
 
     class Meta:
         db_table = "DetallePermiso"
@@ -91,7 +97,7 @@ class Factura(models.Model):
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, db_column="id_cliente")
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, db_column="id_empleado")
     forma_pago = models.ForeignKey(FormaPago, on_delete=models.CASCADE, db_column="id_forma_pago")
-    fecha = models.DateField()
+    fecha = models.DateField(default=timezone.localdate)
     total = models.DecimalField(max_digits=10, decimal_places=2)
     total_IVA = models.DecimalField(max_digits=10, decimal_places=2)
 
@@ -128,9 +134,9 @@ class DetalleFactura(models.Model):
 class TarifaIVA(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     tarifa = models.JSONField()
-    fecha_inicial = models.DateField()
-    fecha_final = models.DateField()
-    estado = models.BooleanField()
+    fecha_inicial = models.DateField(default=timezone.localdate)
+    fecha_final = models.DateField(null=True)
+    estado = models.BooleanField(default=True)
 
     class Meta:
         db_table = "TarifaIVA"
@@ -144,9 +150,9 @@ class PrecioVentaProducto(models.Model):
     tarifa_IVA = models.ForeignKey(TarifaIVA, on_delete=models.CASCADE, db_column="id_tarifa_IVA")
     cantidad = models.JSONField()
     precio = models.DecimalField(max_digits=10, decimal_places=2)
-    fecha_inicial = models.DateField()
-    fecha_final = models.DateField()
-    estado = models.BooleanField()
+    fecha_inicial = models.DateField(default=timezone.localdate)
+    fecha_final = models.DateField(null=True)
+    estado = models.BooleanField(default=True)
 
     class Meta:
         db_table = "PrecioVentaProducto"
@@ -163,7 +169,6 @@ class Local(models.Model):
         db_table = "Local"
         verbose_name = "Local"
         verbose_name_plural = "Locales"
-
 
 
 class DetalleLocal(models.Model):
@@ -215,9 +220,9 @@ class Proveedor(models.Model):
 class Pedido(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.CASCADE, db_column="id_proveedor")
-    fecha_realizado = models.DateField()
-    fecha_recibido = models.DateField()
-    estado = models.BooleanField()
+    fecha_realizado = models.DateField(default=timezone.localdate)
+    fecha_recibido = models.DateField(null=True)
+    estado = models.BooleanField(default=False)
 
     class Meta:
         db_table = "Pedido"
@@ -241,7 +246,7 @@ class Cargo(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     nombre = models.TextField()
     descripcion = models.TextField()
-    estado = models.BooleanField()
+    estado = models.BooleanField(default=True)
 
     class Meta:
         db_table = "Cargo"
@@ -253,12 +258,12 @@ class Contrato(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, db_column="id_empleado")
     cargo = models.ForeignKey(Cargo, on_delete=models.CASCADE, db_column="id_cargo")
-    fecha_inicial = models.DateField()
-    fecha_terminacion = models.DateField()
-    fecha_final = models.DateField()
+    fecha_inicial = models.DateField(default=timezone.localdate)
+    fecha_terminacion = models.DateField(null=True)
+    fecha_final = models.DateField(null=True)
     salario = models.DecimalField(max_digits=10, decimal_places=2)
-    periodicidad_pago = models.DurationField()
-    estado = models.BooleanField()
+    periodicidad_pago = models.DurationField(default=timedelta(weeks=2))
+    estado = models.BooleanField(default=True)
 
     class Meta:
         db_table = "Contrato"

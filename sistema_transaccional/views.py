@@ -1,93 +1,87 @@
-import time
-
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponseRedirect, HttpResponse
 from django.shortcuts import render
 from django.utils import timezone
 
-from sistema_transaccional.forms import FormularioLoginEmpleado
 from sistema_transaccional.models import Credencial, Sesion, DetallePermiso, Permiso
 
 
-def index(peticion):
-    return render(peticion, "sistema_transaccional/index.html")
-
-
-def login_administrador(peticion):
-    formulario = FormularioLoginEmpleado()
+def login(peticion):
+    # Login por sesión cacheada
+    try:
+        # Se busca la sesión cacheada
+        id_sesion_cacheada = peticion.session["id_sesion"]
+        # Se busca el registro en la base de datos
+        sesion = Sesion.objects.get(id=id_sesion_cacheada)
+        # Si la sesión es administrativa o si ya su fecha no es hoy, se cierra la sesión
+        if sesion.es_administrativa or sesion.fecha != timezone.now().date():
+            sesion.fecha_hora_cierre = timezone.now()
+            sesion.estado = False
+            sesion.save()
+            del peticion.session["id_sesion"]
+            # y se procede a mostrar la interfaz de login normalmente
+            return render(peticion, "sistema_transaccional/login.html")
+        # en otro caso, se continúa hacia la interfaz de empleado
+        return HttpResponseRedirect(f"/empleado/")
+    except (KeyError, Sesion.DoesNotExist):
+        pass
+    # Al presionar "Iniciar Sesión" se obtienen los valores ingresados del correo, clave, y si se solicitó una sesión
+    # administrativa
     if peticion.method == "POST":
-        formulario = FormularioLoginEmpleado(peticion.POST)
-        if formulario.is_valid():
-            correo = formulario.cleaned_data["correo"]
-            clave = formulario.cleaned_data["clave"]
-            # Solo debe haber una credencial activa a la vez
-            credenciales = Credencial.objects.filter(correo=correo, clave=clave, estado=True)
-            # Se chequea si existen credenciales activas
-            if len(credenciales) != 0:
-                # Como solo debe haber una sola activa a la vez, la primera es la única.
-                credencial = credenciales[0]
-                permiso_administrador = Permiso.objects.get(id=1)
-                permisos = DetallePermiso.objects.filter(empleado=credencial.empleado, permiso=permiso_administrador)
-                if len(permisos) != 0:
-                    sesion = Sesion(crendencial=credencial, fecha=timezone.now().date(), hora_inicial=timezone.now().time(), hora_final=time.strftime("23:59:59"), estado=True)
-                    sesiones_pasadas = Sesion.objects.filter(crendencial=credencial, estado=True)
-                    # Se chequea si hay sesiones activas
-                    if len(sesiones_pasadas) != 0:
-                        # Por si acaso, se desactivan las que no son de la fecha actual
-                        for i in range(len(sesiones_pasadas)):
-                            if sesiones_pasadas[i].fecha != timezone.now().date():
-                                sesiones_pasadas[i].estado = False
-                                sesiones_pasadas[i].save()
-                                del sesiones_pasadas[i]
-                        # Se eliminan todas las sesiones pasadas de la fecha actual activas, menos una, y esa se reutiliza
-                        sesiones_pasadas = sorted(sesiones_pasadas, key=lambda x: x.hora_inicial)
-                        if len(sesiones_pasadas) >= 1:
-                            for i in range(len(sesiones_pasadas) - 1):
-                                del sesiones_pasadas[i]
-                            sesion = sesiones_pasadas[0]
-                        else:
-                            sesion.save()
-                    return HttpResponseRedirect(f"/administrador/{credencial.empleado.id}/{sesion.id}/")
-    return render(peticion, "sistema_transaccional/login_administrador.html", {"formulario": formulario})
+        correo = peticion.POST["entrada-login-correo"]
+        clave = peticion.POST["entrada-login-clave"]
+        try:
+            se_solicito_sesion_administrativa = peticion.POST["entrada-login-se-solicito-sesion-administrativa"]
+        except KeyError:
+            se_solicito_sesion_administrativa = "off"
+        se_solicito_sesion_administrativa = True if se_solicito_sesion_administrativa == "on" else False
+        resultados_credencial = Credencial.objects.filter(correo=correo, clave=clave, estado=True)
+        # Si no se encontraron credenciales, se indica el error
+        if len(resultados_credencial) == 0:
+            return render(peticion, "sistema_transaccional/login.html")
+        credencial = resultados_credencial[0]
+        # Se crea una nueva sesión
+        sesion = Sesion(credencial=credencial)
+        # Si se solicitó una sesión administrativa
+        if se_solicito_sesion_administrativa:
+            # se comprueba que el empleado tenga el permiso administrativo
+            try:
+                DetallePermiso.objects.get(empleado=credencial.empleado, permiso=Permiso.objects.get(id=1), estado=True)
+                sesion.es_administrativa = True
+                sesion.save()
+                peticion.session["id_sesion"] = str(sesion.id)
+                # si lo tiene, se muestra la interfaz de administrador
+                return HttpResponseRedirect(f"/administrador/")
+            except DetallePermiso.DoesNotExist:
+                # si no, se muestra un error indicando que no es administrador
+                return render(peticion, "sistema_transaccional/login.html")
+            except Permiso.DoesNotExist:
+                # se muestra un error indicando que no existe el permiso de administrador
+                return render(peticion, "sistema_transaccional/login.html")
+        # si no, se registra la sesión y se muestra la interfaz principal de empleado
+        sesion.save()
+        peticion.session["id_sesion"] = str(sesion.id)
+        return HttpResponseRedirect(f"/empleado/")
+    return render(peticion, "sistema_transaccional/login.html")
 
 
-def vista_administrador(peticion, id_empleado, id_sesion):
+def logout(peticion):
+    mensaje = "Se ha cerrado sesión correctamente"
+    try:
+        id_sesion_cacheada = peticion.session["id_sesion"]
+        if id_sesion_cacheada == "":
+            raise KeyError
+        sesion = Sesion.objects.get(id=id_sesion_cacheada)
+        sesion.fecha_hora_cierre = timezone.now()
+        sesion.estado = False
+        sesion.save()
+        del peticion.session["id_sesion"]
+    except (KeyError, Sesion.DoesNotExist) as error:
+        mensaje = f"No se ha cerrado sesión correctamente, error: {error}"
+    return render(peticion, "sistema_transaccional/logout.html", { "mensaje": mensaje })
+
+def vista_administrador(peticion):
     return render(peticion, "sistema_transaccional/vista_administrador.html")
 
 
-def login_empleado(peticion):
-    formulario = FormularioLoginEmpleado()
-    if peticion.method == "POST":
-        formulario = FormularioLoginEmpleado(peticion.POST)
-        if formulario.is_valid():
-            correo = formulario.cleaned_data["correo"]
-            clave = formulario.cleaned_data["clave"]
-            # Solo debe haber una credencial activa a la vez
-            credenciales = Credencial.objects.filter(correo=correo, clave=clave, estado=True)
-            # Se chequea si existen credenciales activas
-            if len(credenciales) != 0:
-                # Como solo debe haber una sola activa a la vez, la primera es la única.
-                credencial = credenciales[0]
-                sesion = Sesion(crendencial=credencial, fecha=timezone.now().date(), hora_inicial=timezone.now().time(), hora_final=time.strftime("23:59:59"), estado=True)
-                sesiones_pasadas = Sesion.objects.filter(crendencial=credencial, estado=True)
-                # Se chequea si hay sesiones activas
-                if len(sesiones_pasadas) != 0:
-                    # Por si acaso, se desactivan las que no son de la fecha actual
-                    for i in range(len(sesiones_pasadas)):
-                        if sesiones_pasadas[i].fecha != timezone.now().date():
-                            sesiones_pasadas[i].estado = False
-                            sesiones_pasadas[i].save()
-                            del sesiones_pasadas[i]
-                    # Se eliminan todas las sesiones pasadas de la fecha actual activas, menos una, y esa se reutiliza
-                    sesiones_pasadas = sorted(sesiones_pasadas, key=lambda x: x.hora_inicial)
-                    if len(sesiones_pasadas) >= 1:
-                        for i in range(len(sesiones_pasadas) - 1):
-                            del sesiones_pasadas[i]
-                        sesion = sesiones_pasadas[0]
-                    else:
-                        sesion.save()
-                return HttpResponseRedirect(f"/empleado/{credencial.empleado.id}/{sesion.id}/")
-    return render(peticion, "sistema_transaccional/login_empleado.html", {"formulario": formulario})
-
-
-def vista_empleado(peticion, id_empleado, id_sesion):
+def vista_empleado(peticion):
     return render(peticion, "sistema_transaccional/vista_empleado.html")
