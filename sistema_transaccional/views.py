@@ -1,87 +1,213 @@
-from django.http import HttpResponseRedirect, HttpResponse
-from django.shortcuts import render
-from django.utils import timezone
+import json
+import sys
 
-from sistema_transaccional.models import Credencial, Sesion, DetallePermiso, Permiso
+from django.contrib import messages
+from django.db import transaction, IntegrityError
+from django.forms import formset_factory
+from django.http import HttpRequest, HttpResponse
+from django.shortcuts import render, redirect
+
+from sistema_transaccional.exceptions import SesionNoCacheada
+from sistema_transaccional.forms import FormularioLogin, FormularioProductoCaja, FormularioContratacionEmpleados
+from sistema_transaccional.models import Credencial, Sesion, DetallePermiso, Permiso, Empleado, Contrato, \
+    Cargo, PrecioVentaProducto, DetalleFactura
+from sistema_transaccional.utils import guardar_id_sesion, obtener_sesion, borrar_id_sesion
 
 
-def login(peticion):
-    # Login por sesión cacheada
-    try:
-        # Se busca la sesión cacheada
-        id_sesion_cacheada = peticion.session["id_sesion"]
-        # Se busca el registro en la base de datos
-        sesion = Sesion.objects.get(id=id_sesion_cacheada)
-        # Si la sesión es administrativa o si ya su fecha no es hoy, se cierra la sesión
-        if sesion.es_administrativa or sesion.fecha != timezone.now().date():
-            sesion.fecha_hora_cierre = timezone.now()
-            sesion.estado = False
+def index(request: HttpRequest) -> HttpResponse:
+    return redirect("sistema_transaccional:login")
+
+
+def login(request: HttpRequest) -> HttpResponse:
+    contexto = {"formulario": FormularioLogin()}
+    # login por sesión cacheada
+    sesion = obtener_sesion(request)
+    # si se consiguió la sesión correctamente
+    if sesion:
+        # si no es válida, entonces se cierra, y se continúa normalmente
+        if not sesion.es_valida():
+            sesion.invalidar()
             sesion.save()
-            del peticion.session["id_sesion"]
-            # y se procede a mostrar la interfaz de login normalmente
-            return render(peticion, "sistema_transaccional/login.html")
-        # en otro caso, se continúa hacia la interfaz de empleado
-        return HttpResponseRedirect(f"/empleado/")
-    except (KeyError, Sesion.DoesNotExist):
-        pass
-    # Al presionar "Iniciar Sesión" se obtienen los valores ingresados del correo, clave, y si se solicitó una sesión
-    # administrativa
-    if peticion.method == "POST":
-        correo = peticion.POST["entrada-login-correo"]
-        clave = peticion.POST["entrada-login-clave"]
-        try:
-            se_solicito_sesion_administrativa = peticion.POST["entrada-login-se-solicito-sesion-administrativa"]
-        except KeyError:
-            se_solicito_sesion_administrativa = "off"
-        se_solicito_sesion_administrativa = True if se_solicito_sesion_administrativa == "on" else False
-        resultados_credencial = Credencial.objects.filter(correo=correo, clave=clave, estado=True)
-        # Si no se encontraron credenciales, se indica el error
-        if len(resultados_credencial) == 0:
-            return render(peticion, "sistema_transaccional/login.html")
-        credencial = resultados_credencial[0]
-        # Se crea una nueva sesión
-        sesion = Sesion(credencial=credencial)
-        # Si se solicitó una sesión administrativa
-        if se_solicito_sesion_administrativa:
-            # se comprueba que el empleado tenga el permiso administrativo
+            borrar_id_sesion(request)
+        # si es válida, se comprueba el tipo para mostrar la interfaz correspondiente
+        elif sesion.es_administrativa:
+            return redirect("sistema_transaccional:vista_administrador")
+        else:
+            return redirect("sistema_transaccional:vista_empleado")
+    # login por ingreso de crendenciales
+    if request.method == "POST":
+        # se crea un objeto con los datos del formulario
+        formulario = FormularioLogin(request.POST)
+        contexto["formulario"] = formulario
+        # se comprueba que el formulario es válido
+        if formulario.is_valid():
+            correo = formulario.cleaned_data["correo"]
+            clave = formulario.cleaned_data["clave"]
+            se_solicita_sesion_administrativa = formulario.cleaned_data["se_solicita_sesion_administrativa"]
             try:
-                DetallePermiso.objects.get(empleado=credencial.empleado, permiso=Permiso.objects.get(id=1), estado=True)
-                sesion.es_administrativa = True
+                credencial = Credencial.objects.get(correo=correo, clave=clave, estado=True)
+            except Credencial.DoesNotExist:
+                # si no se encontraron credenciales, se indica el error
+                messages.error(request, "Credenciales inválidas")
+                return render(request, "sistema_transaccional/login.html", contexto)
+            # se crea una nueva sesión
+            sesion = Sesion(credencial=credencial)
+            # si se solicitó una sesión administrativa
+            if se_solicita_sesion_administrativa:
+                try:
+                    # se comprueba que el empleado tenga el permiso administrativo
+                    DetallePermiso.objects.get(empleado=credencial.empleado,
+                                               permiso=Permiso.objects.get(nombre="ADMINISTRADOR"), estado=True)
+                    sesion.es_administrativa = True
+                    guardar_id_sesion(request, str(sesion.id))
+                    sesion.save()
+                    # si lo tiene, se muestra la interfaz de administrador
+                    return redirect("sistema_transaccional:vista_administrador")
+                except DetallePermiso.DoesNotExist:
+                    # si no, se muestra un error indicando que no es administrador
+                    messages.error(request, "No se poseen los permisos administrativos")
+                    return render(request, "sistema_transaccional/login.html", contexto)
+                except Permiso.DoesNotExist:
+                    messages.error(request, "No existen administradores en el sistema")
+                    # se indica un error indicando que no existe el permiso de administrador
+                    return render(request, "sistema_transaccional/login.html", contexto)
+                except SesionNoCacheada:
+                    # se indica un error indicando que no se pudo guardar la sesión en el caché
+                    messages.error(request, "No se puedo cachear la sesión administrativa")
+                    return render(request, "sistema_transaccional/login.html", contexto)
+            # si se solicitó una sesión de empleado
+            try:
+                # se comprueba que el empleado tenga el permiso de empleado
+                DetallePermiso.objects.get(empleado=credencial.empleado, permiso=Permiso.objects.get(nombre="EMPLEADO"),
+                                           estado=True)
+                guardar_id_sesion(request, str(sesion.id))
                 sesion.save()
-                peticion.session["id_sesion"] = str(sesion.id)
-                # si lo tiene, se muestra la interfaz de administrador
-                return HttpResponseRedirect(f"/administrador/")
+                # si lo tiene, se muestra la interfaz de empleado
+                return redirect("sistema_transaccional:vista_empleado")
             except DetallePermiso.DoesNotExist:
-                # si no, se muestra un error indicando que no es administrador
-                return render(peticion, "sistema_transaccional/login.html")
-            except Permiso.DoesNotExist:
-                # se muestra un error indicando que no existe el permiso de administrador
-                return render(peticion, "sistema_transaccional/login.html")
-        # si no, se registra la sesión y se muestra la interfaz principal de empleado
+                # se muestra un error por la ausencia del permiso de empleado
+                messages.error(request, "No se poseen los permisos de empleado")
+                return render(request, "sistema_transaccional/login.html", contexto)
+            except SesionNoCacheada:
+                # se muestra un error por fallar en cachear la sesión
+                messages.error(request, "No se puedo cachear la sesión de empleado")
+                return render(request, "sistema_transaccional/login.html")
+    return render(request, "sistema_transaccional/login.html", contexto)
+
+
+def logout(request: HttpRequest) -> HttpResponse:
+    sesion = obtener_sesion(request)
+    if sesion is not None:
+        sesion.invalidar()
         sesion.save()
-        peticion.session["id_sesion"] = str(sesion.id)
-        return HttpResponseRedirect(f"/empleado/")
-    return render(peticion, "sistema_transaccional/login.html")
+        borrar_id_sesion(request)
+        messages.success(request, "Se cerró sesión correctamente")
+    return render(request, "sistema_transaccional/logout.html")
 
 
-def logout(peticion):
-    mensaje = "Se ha cerrado sesión correctamente"
+def vista_empleado(request: HttpRequest) -> HttpResponse:
+    sesion = obtener_sesion(request)
+    if sesion is None:
+        return redirect("sistema_transaccional:login")
+    if sesion.es_administrativa:
+        messages.error(request, "Para acceder a las funciones de empleado es necesario iniciar sesióin como tal")
+    contexto = {"formulario": FormularioProductoCaja()}
+    return render(request, "sistema_transaccional/vista_empleado.html", contexto)
+
+
+def caja(request: HttpRequest) -> HttpResponse:
+    sesion = obtener_sesion(request)
+    if sesion is None:
+        return redirect("sistema_transaccional:login")
+    if sesion.es_administrativa:
+        messages.error(request, "Para acceder a las funciones de empleado es necesario iniciar sesióin como tal")
     try:
-        id_sesion_cacheada = peticion.session["id_sesion"]
-        if id_sesion_cacheada == "":
-            raise KeyError
-        sesion = Sesion.objects.get(id=id_sesion_cacheada)
-        sesion.fecha_hora_cierre = timezone.now()
-        sesion.estado = False
-        sesion.save()
-        del peticion.session["id_sesion"]
-    except (KeyError, Sesion.DoesNotExist) as error:
-        mensaje = f"No se ha cerrado sesión correctamente, error: {error}"
-    return render(peticion, "sistema_transaccional/logout.html", { "mensaje": mensaje })
-
-def vista_administrador(peticion):
-    return render(peticion, "sistema_transaccional/vista_administrador.html")
+        DetallePermiso.objects.get(empleado=sesion.credencial.empleado, permiso=Permiso.objects.get(nombre="CAJA"),
+                                   estado=True)
+    except DetallePermiso.DoesNotExist:
+        messages.error(request, "No se poseen los permisos de caja")
+        return redirect("sistema_transaccional:vista_empleado")
+    contexto = {"formulario": FormularioProductoCaja()}
+    if request.method == "POST":
+        pass
+    return render(request, "sistema_transaccional/caja.html", contexto)
 
 
-def vista_empleado(peticion):
-    return render(peticion, "sistema_transaccional/vista_empleado.html")
+def componente_producto_caja(request):
+    if request.method == "POST":
+        formulario = FormularioProductoCaja(request.POST)
+        if formulario.is_valid():
+            id_precio_venta = formulario.cleaned_data["producto"]
+            unidad = formulario.cleaned_data["unidad"]
+            magnitud = formulario.cleaned_data["magnitud"]
+            precio_venta_producto = PrecioVentaProducto.objects.get(id=id_precio_venta)
+            contexto = {"nombre_producto": precio_venta_producto.producto.nombre, "magnitud": magnitud,
+                        "unidad": unidad,
+                        "subtotal": precio_venta_producto.precio * magnitud / precio_venta_producto.cantidad[
+                            "magnitud"]}
+            detalle_factura_temporal = DetalleFactura()
+            return render(request, "sistema_transaccional/componentes/producto_caja.html", contexto)
+
+
+def formulario_producto_caja(request):
+    contexto = {"formulario": FormularioProductoCaja()}
+    if request.method == "POST":
+        formulario = FormularioProductoCaja(request.POST)
+        contexto["formulario"] = formulario
+    return render(request, "sistema_transaccional/formularios/producto_caja.html", contexto)
+
+
+def vista_administrador(request: HttpRequest) -> HttpResponse:
+    sesion = obtener_sesion(request)
+    if sesion is None:
+        return redirect("sistema_transaccional:login")
+    if not sesion.es_administrativa:
+        messages.error(request, "Para acceder a las funciones de administrador es necesario iniciar sesión como tal")
+        return redirect("sistema_transaccional:vista_empleado")
+    return render(request, "sistema_transaccional/vista_administrador.html")
+
+
+def contratacion(request: HttpRequest) -> HttpResponse:
+    sesion = obtener_sesion(request)
+    if sesion is None:
+        return redirect("sistema_transaccional:login")
+    if not sesion.es_administrativa:
+        messages.error(request, "Para acceder a las funciones del administrador es necesario iniciar sesión como tal")
+        return redirect("sistema_transaccional:vista_empleado")
+    contexto = {"formulario": FormularioContratacionEmpleados()}
+    if request.method == "POST":
+        formulario = FormularioContratacionEmpleados(request.POST)
+        contexto["formulario"] = formulario
+        if formulario.is_valid():
+            nombre = formulario.cleaned_data["nombre"]
+            id = formulario.cleaned_data["id"]
+            prefijo = formulario.cleaned_data["prefijo"]
+            numero = formulario.cleaned_data["numero"]
+            correo = formulario.cleaned_data["correo"]
+            clave = formulario.cleaned_data["clave"]
+            id_cargo = formulario.cleaned_data["id_cargo"]
+            salario = formulario.cleaned_data["salario"]
+            frecuencia_pago = formulario.cleaned_data["frecuencia_pago"]
+            fecha_final = formulario.cleaned_data["fecha_final"]
+            es_administrador = formulario.cleaned_data["es_administrador"]
+            try:
+                with transaction.atomic():
+                    nuevo_empleado = Empleado(id=id, nombre=nombre,
+                                              telefono=json.dumps({"prefijo": prefijo, "numero": numero}))
+                    cargo = Cargo.objects.get(id=id_cargo)
+                    nuevo_contrato = Contrato(empleado=nuevo_empleado, cargo=cargo, fecha_final=fecha_final,
+                                              salario=salario, frecuencia_pago=frecuencia_pago)
+                    permiso = Permiso.objects.get(nombre="ADMINISTRADOR") if es_administrador else Permiso.objects.get(
+                        nombre="EMPLEADO")
+                    nuevo_detalle_permiso = DetallePermiso(empleado=nuevo_empleado, permiso=permiso)
+                    nueva_credencial = Credencial(empleado=nuevo_empleado, correo=correo, clave=clave)
+                    nuevo_empleado.save()
+                    nuevo_contrato.save()
+                    nuevo_detalle_permiso.save()
+                    nueva_credencial.save()
+            except IntegrityError:
+                messages.error(request, "El empleado ya existe")
+                return render(request, "sistema_transaccional/contratacion.html", contexto)
+            contexto["formulario"] = FormularioContratacionEmpleados()
+            messages.success(request, f"Se ha contratado exitosamente al empleado {nombre}")
+    return render(request, "sistema_transaccional/contratacion.html", contexto)

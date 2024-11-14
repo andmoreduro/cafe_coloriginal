@@ -1,1 +1,3 @@
 .idea
+$persist_dir
+sistema_transaccional/migrations/*_initial.py

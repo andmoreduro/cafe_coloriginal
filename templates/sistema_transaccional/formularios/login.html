@@ -1,0 +1,15 @@
+<div class="form-group mb-3">
+    {{ formulario.correo.errors }}
+    <label class="form-label" for="{{ formulario.correo.id_for_label }}">{{ formulario.correo.label }}</label>
+    {{ formulario.correo }}
+</div>
+<div class="form-group mb-3">
+    {{ formulario.clave.errors }}
+    <label class="form-label" for="{{ formulario.clave.id_for_label }}">{{ formulario.clave.label }}</label>
+    {{ formulario.clave }}
+</div>
+<div class="form-group mb-3">
+    {{ formulario.se_solicita_sesion_administrativa.errors }}
+    {{ formulario.se_solicita_sesion_administrativa }}
+    <label class="form-label" for="{{ formulario.se_solicita_sesion_administrativa.id_for_label }}">{{ formulario.se_solicita_sesion_administrativa.label }}</label>
+</div>

@@ -3,18 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    {% load django_bootstrap5 %}
-    {% bootstrap_css %}
-    {% bootstrap_javascript %}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     {% load static %}
     <link rel="stylesheet" href="{% static 'css/estilos.css' %}">
-    <title>Title</title>
+    <title>Login</title>
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
 
-<nav class="navbar navbar-expand bg-body-tertiary fixed-top">
+<nav class="navbar navbar-expand border-bottom bg-body-tertiary fixed-top">
     <div class="container-fluid">
-        <a class="navbar-brand" href="{% url 'sistema_transaccional:login' %}">Sistema Transaccional</a>
+        <span class="navbar-brand">Sistema Transaccional</span>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
                 data-bs-target="#contenido-barra-navegacion" aria-controls="contenido-barra-navegacion"
                 aria-expanded="false" aria-label="Toggle navegación">
@@ -22,31 +21,77 @@
         </button>
         <div class="collapse navbar-collapse" id="contenido-barra-navegacion">
             <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link active" href="{% url 'sistema_transaccional:login' %}">Login</a>
+                </li>
             </ul>
         </div>
     </div>
 </nav>
-<div class="d-flex min-vh-100 justify-content-center align-items-center align-content-center flex-wrap navbar-pad-offset">
-    <h1 class="w-100 text-center">Login</h1>
+<nav class="navbar navbar-expand border-bottom bg-body-tertiary">
+    <div class="container-fluid">
+        <span class="navbar-brand">Sistema Transaccional</span>
+    </div>
+</nav>
+<div class="d-flex flex-column flex-grow-1 justify-content-center align-items-center align-content-center">
     <form class="w-50" action="{% url 'sistema_transaccional:login' %}" method="post">
         {% csrf_token %}
-        <div class="mb-3">
-            <label class="form-label" for="entrada-login-correo" >Correo electrónico</label>
-            <input class="form-control" type="email" name="entrada-login-correo" id="entrada-login-correo">
-        </div>
-        <div class="mb-3">
-            <label class="form-label" for="entrada-login-clave">Clave</label>
-            <input class="form-control" type="password" name="entrada-login-clave" id="entrada-login-clave">
-        </div>
-        <div class="mb-3 form-check">
-            <input class="form-check-input" type="checkbox" name="entrada-login-se-solicito-sesion-administrativa" id="entrada-login-se-solicito-sesion-administrativa">
-            <label class="form-check-label" for="entrada-login-se-solicito-sesion-administrativa">Soy administrador</label>
-        </div>
-        <div class="text-center">
+        {% include 'sistema_transaccional/formularios/login.html' %}
+        <div class="text-center mb-3">
             <input class="btn btn-primary" type="submit" value="Iniciar Sesión">
         </div>
     </form>
 </div>
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{% if message.tags == "error" %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show fixed-bottom" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+{% if formulario.non_field_errors %}
+    {% for error in formulario.non_field_errors %}
+        <div class="alert alert-danger alert-dismissible fade show fixed-bottom" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<script>
+    const elementoCorreo = document.getElementById("{{ formulario.correo.id_for_label }}");
+    const elementoClave = document.getElementById("{{ formulario.clave.id_for_label }}");
+    
+    elementoCorreo.oninvalid = function () {
+        if (this.validity.valueMissing) {
+            this.setCustomValidity("Ingresa tu correo electrónico");
+        }
+    }
+    elementoCorreo.oninput = function() {
+        if (this.validity.valueMissing) {
+            this.setCustomValidity("Ingresa tu correo electrónico");
+        } else if (this.validity.typeMismatch) {
+            this.setCustomValidity("El correo electrónico solo incluye caractéres alfanuméricos, requiere del @, y que este último no inicie ni termine");
+        } else if (this.validity.customError) {
+            this.setCustomValidity("");
+        }
+    };
+
+    elementoClave.oninvalid = function() {
+        if (this.validity.valueMissing) {
+            this.setCustomValidity("Ingresa tu clave");
+        }
+    }
+    elementoClave.oninput = function() {
+        if (this.validity.valueMissing) {
+            this.setCustomValidity("Ingresa tu clave");
+        } else if (this.validity.customError) {
+            this.setCustomValidity("");
+        }
+    };
+    
+</script>
 
 </body>
 </html>

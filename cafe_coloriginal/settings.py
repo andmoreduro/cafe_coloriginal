@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 import os
+import tempfile
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -37,7 +38,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_bootstrap5',
 ]
 
 MIDDLEWARE = [
@@ -70,6 +70,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'cafe_coloriginal.wsgi.application'
+# ASGI_APPLICATION = 'cafe_coloriginal.asgi.application'
 
 
 # Database
@@ -78,11 +79,15 @@ WSGI_APPLICATION = 'cafe_coloriginal.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        "NAME": "postgres",
-        "USER": "postgres",
-        "PASSWORD": "1234",
-        "HOST": "localhost",
-        "PORT": 5432,
+        'NAME': 'postgres',
+        # 'USER': 'postgres',
+        'USER': 'postgres.blakldgyjmxaorcmaaxs',
+        # 'PASSWORD': '1234',
+        'PASSWORD': 'dQqXbDxQwHN0XDGC',
+        # 'HOST': 'localhost',
+        'HOST': 'aws-0-us-east-1.pooler.supabase.com',
+        # 'PORT': 5432,
+        'PORT': 6543,
     }
 }
 
@@ -111,7 +116,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Bogota'
 
 USE_I18N = True
 
@@ -132,3 +137,4 @@ STATICFILES_DIRS = [
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 SESSION_ENGINE = "django.contrib.sessions.backends.file"
+SESSION_FILE_PATH = os.path.join(tempfile.gettempdir(), "cafe_coloriginal.session")

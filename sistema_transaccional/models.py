@@ -1,8 +1,11 @@
 import uuid
 from datetime import timedelta
 
-from django.db import models, IntegrityError
+from django.db import models, transaction
 from django.utils import timezone
+from psycopg import IntegrityError
+
+from sistema_transaccional.exceptions import SesionInvalida
 
 
 class Empleado(models.Model):
@@ -38,6 +41,13 @@ class Sesion(models.Model):
     es_administrativa = models.BooleanField(default=False)
     estado = models.BooleanField(default=True)
 
+    def es_valida(self):
+        return self.estado == True or self.fecha != timezone.localdate()
+
+    def invalidar(self):
+        self.fecha_hora_cierre = timezone.now()
+        self.estado = False
+
     class Meta:
         db_table = "Sesion"
         verbose_name = "Sesión"
@@ -46,7 +56,7 @@ class Sesion(models.Model):
 
 class Permiso(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
-    nombre = models.TextField()
+    nombre = models.TextField(unique=True)
     descripcion = models.TextField()
 
     class Meta:
@@ -60,8 +70,8 @@ class DetallePermiso(models.Model):
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, db_column="id_empleado")
     permiso = models.ForeignKey(Permiso, on_delete=models.CASCADE, db_column="id_permiso")
     fecha_inicial = models.DateField(default=timezone.localdate)
-    fecha_terminacion = models.DateField(null=True)
-    fecha_final = models.DateField()
+    fecha_terminacion = models.DateField(default=None, null=True)
+    fecha_final = models.DateField(default=None, null=True, blank=True)
     estado = models.BooleanField(default=True)
 
     class Meta:
@@ -124,6 +134,7 @@ class DetalleFactura(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, db_column="id_producto")
     cantidad = models.JSONField()
     total = models.DecimalField(max_digits=10, decimal_places=2)
+    estado = models.TextField()
 
     class Meta:
         db_table = "DetalleFactura"
@@ -133,7 +144,7 @@ class DetalleFactura(models.Model):
 
 class TarifaIVA(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
-    tarifa = models.JSONField()
+    porcentaje = models.DecimalField(max_digits=10, decimal_places=2)
     fecha_inicial = models.DateField(default=timezone.localdate)
     fecha_final = models.DateField(null=True)
     estado = models.BooleanField(default=True)
@@ -259,10 +270,10 @@ class Contrato(models.Model):
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, db_column="id_empleado")
     cargo = models.ForeignKey(Cargo, on_delete=models.CASCADE, db_column="id_cargo")
     fecha_inicial = models.DateField(default=timezone.localdate)
-    fecha_terminacion = models.DateField(null=True)
-    fecha_final = models.DateField(null=True)
+    fecha_terminacion = models.DateField(default=None, null=True)
+    fecha_final = models.DateField(null=True, blank=True)
     salario = models.DecimalField(max_digits=10, decimal_places=2)
-    periodicidad_pago = models.DurationField(default=timedelta(weeks=2))
+    frecuencia_pago = models.TextField()
     estado = models.BooleanField(default=True)
 
     class Meta:
@@ -284,9 +295,8 @@ class Nomina(models.Model):
 
 class Reduccion(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
-    nombre = models.TextField()
+    nombre = models.TextField(unique=True)
     descripcion = models.TextField()
-    tarifa = models.JSONField()
 
     class Meta:
         db_table = "Reduccion"

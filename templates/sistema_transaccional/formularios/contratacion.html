@@ -1,0 +1,57 @@
+<div class="form-group mb-3">
+    {{ formulario.nombre.errors }}
+    <label for="{{ formulario.nombre.id_for_label }}" class="form-label">{{ formulario.nombre.label }}</label>
+    {{ formulario.nombre }}
+</div>
+<div class="form-group mb-3">
+    {{ formulario.id.errors }}
+    <label for="{{ formulario.id.id_for_label }}" class="form-label">{{ formulario.id.label }}</label>
+    {{ formulario.id }}
+</div>
+<div class="row mb-3">
+    <div class="form-group col-3">
+        {{ formulario.prefijo.errors }}
+        <label for="{{ formulario.prefijo.id_for_label }}" class="form-label">{{ formulario.prefijo.label }}</label>
+        {{ formulario.prefijo }}
+    </div>
+    <div class="form-group col">
+        {{ formulario.numero.errors }}
+        <label for="{{ formulario.numero.id_for_label }}" class="form-label">{{ formulario.numero.label }}</label>
+        {{ formulario.numero }}
+    </div>
+</div>
+<div class="form-group mb-3">
+    {{ formulario.correo.errors }}
+    <label for="{{ formulario.correo.id_for_label }}" class="form-label">{{ formulario.correo.label }}</label>
+    {{ formulario.correo }}
+</div>
+<div class="form-group mb-3">
+    {{ formulario.clave.errors }}
+    <label for="{{ formulario.clave.id_for_label }}" class="form-label">{{ formulario.clave.label }}</label>
+    {{ formulario.clave }}
+</div>
+<div class="form-group mb-3">
+    {{ formulario.id_cargo.errors }}
+    <label for="{{ formulario.id_cargo.id_for_label }}" class="form-label">{{ formulario.id_cargo.label }}</label>
+    {{ formulario.id_cargo }}
+</div>
+<div class="form-group mb-3">
+    {{ formulario.salario.errors }}
+    <label for="{{ formulario.salario.id_for_label }}" class="form-label">{{ formulario.salario.label }}</label>
+    {{ formulario.salario }}
+</div>
+<div class="form-group mb-3">
+    {{ formulario.frecuencia_pago.errors }}
+    <label for="{{ formulario.frecuencia_pago.id_for_label }}" class="form-label">{{ formulario.frecuencia_pago.label }}</label>
+    {{ formulario.frecuencia_pago }}
+</div>
+<div class="form-group mb-3">
+    {{ formulario.fecha_final.errors }}
+    <label for="{{ formulario.fecha_final.id_for_label }}" class="form-label">{{ formulario.fecha_final.label }}</label>
+    {{ formulario.fecha_final }}
+</div>
+<div class="form-group mb-3">
+    {{ formulario.es_administrador.errors }}
+    {{ formulario.es_administrador }}
+    <label for="{{ formulario.es_administrador.id_for_label }}" class="form-label">{{ formulario.es_administrador.label }}</label>
+</div>
