@@ -1,0 +1,40 @@
+<div class="m-3 d-flex flex-column flex-grow-1 justify-content-center align-items-center align-content-center" id="factura-caja">
+    <strong>Factura de venta</strong>
+    <p>No. {{ factura.id }}</p>
+    <p>Local: {{ local.nombre }} ({{ local.ubicacion.direccion }})</p>
+    <p>Empleado: {{ empleado.nombre }} (C. C. {{ empleado.id }})</p>
+    <p>{{ local.ubicacion.ciudad }}</p>
+    <p>Fecha: {{ factura.fecha }}, Hora: {{ factura.hora }}</p>
+    <p>C. C. del cliente: {{ cedula_cliente }}</p>
+    <p>Forma de pago: {{ forma_pago.nombre|lower|capfirst }}</p>
+    <strong>Productos</strong>
+    <div class="d-flex align-self-stretch row">
+        <hr>
+        <div class="col-3">Nombre</div>
+        <div class="col-3">Cantidad</div>
+        <div class="col-3">Subtotal</div>
+        <div class="col-3">Subtotal IVA</div>
+        <hr>
+    </div>
+    {% for detalle_factura in detalles_factura %}
+        <div class="d-flex align-self-stretch row">
+            <div class="col-3">{{ detalle_factura.nombre_producto }}</div>
+            <div class="col-3">{{ detalle_factura.cantidad_y_unidad }}</div>
+            <div class="col-3">{{ detalle_factura.subtotal }}</div>
+            <div class="col-3">{{ detalle_factura.subtotal_IVA }}</div>
+        </div>
+    {% endfor %}
+    <div class="d-flex align-self-stretch row">
+        <hr>
+        <div class="col-6"></div>
+        <div class="col-3">Total</div>
+        <div class="col-3">Total IVA</div>
+    </div>
+    <div class="d-flex align-self-stretch row">
+        <div class="col-6"></div>
+        <div class="col-3">{{ factura.total }}</div>
+        <div class="col-3">{{ factura.total_IVA }}</div>
+        <hr>
+    </div>
+    <strong>Total: ${{ factura.total|add:factura.total_IVA }}</strong>
+</div>

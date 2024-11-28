@@ -1,11 +1,10 @@
 import uuid
-from datetime import timedelta
 
-from django.db import models, transaction
+from django.db import models
 from django.utils import timezone
-from psycopg import IntegrityError
 
-from sistema_transaccional.exceptions import SesionInvalida
+def current_time():
+    return timezone.localtime().time()
 
 
 class Empleado(models.Model):
@@ -36,7 +35,7 @@ class Sesion(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     credencial = models.ForeignKey(Credencial, on_delete=models.CASCADE, db_column="id_crendencial")
     fecha = models.DateField(default=timezone.localdate)
-    hora_inicial = models.TimeField(default=timezone.localtime)
+    hora_inicial = models.TimeField(default=current_time)
     fecha_hora_cierre = models.DateTimeField(null=True)
     es_administrativa = models.BooleanField(default=False)
     estado = models.BooleanField(default=True)
@@ -56,7 +55,7 @@ class Sesion(models.Model):
 
 class Permiso(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
-    nombre = models.TextField(unique=True)
+    nombre = models.TextField(unique=True, editable=False)
     descripcion = models.TextField()
 
     class Meta:
@@ -80,20 +79,9 @@ class DetallePermiso(models.Model):
         verbose_name_plural = "Detalles de Permiso"
 
 
-class Cliente(models.Model):
-    id = models.AutoField(primary_key=True, editable=False)
-    nombre = models.TextField()
-    descripcion = models.TextField()
-
-    class Meta:
-        db_table = "Cliente"
-        verbose_name = "Cliente"
-        verbose_name_plural = "Clientes"
-
-
 class FormaPago(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
-    nombre = models.TextField()
+    nombre = models.TextField(unique=True, editable=False)
     comision = models.JSONField()
 
     class Meta:
@@ -104,12 +92,13 @@ class FormaPago(models.Model):
 
 class Factura(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
-    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, db_column="id_cliente")
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, db_column="id_empleado")
     forma_pago = models.ForeignKey(FormaPago, on_delete=models.CASCADE, db_column="id_forma_pago")
+    cedula_cliente = models.TextField()
     fecha = models.DateField(default=timezone.localdate)
-    total = models.DecimalField(max_digits=10, decimal_places=2)
-    total_IVA = models.DecimalField(max_digits=10, decimal_places=2)
+    hora = models.TimeField(default=current_time)
+    total = models.DecimalField(max_digits=25, decimal_places=2)
+    total_IVA = models.DecimalField(max_digits=25, decimal_places=2)
 
     class Meta:
         db_table = "Factura"
@@ -128,13 +117,26 @@ class Producto(models.Model):
         verbose_name_plural = "Productos"
 
 
+class UnidadMedida(models.Model):
+    id = models.AutoField(primary_key=True, editable=False)
+    abreviacion = models.TextField(unique=True, editable=False)
+    nombre = models.TextField(unique=True, editable=False)
+    gramos_equivalentes = models.DecimalField(max_digits=25, decimal_places=5)
+
+    class Meta:
+        db_table = "UnidadMedida"
+        verbose_name = "Unidad Medida"
+        verbose_name_plural = "Unidades de Medida"
+
+
 class DetalleFactura(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     factura = models.ForeignKey(Factura, on_delete=models.CASCADE, db_column="id_factura")
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, db_column="id_producto")
-    cantidad = models.JSONField()
-    total = models.DecimalField(max_digits=10, decimal_places=2)
-    estado = models.TextField()
+    unidad_medida = models.ForeignKey(UnidadMedida, on_delete=models.CASCADE, db_column="id_unidad_medida")
+    cantidad = models.DecimalField(max_digits=25, decimal_places=5)
+    subtotal = models.DecimalField(max_digits=25, decimal_places=2)
+    subtotal_IVA = models.DecimalField(max_digits=25, decimal_places=2)
 
     class Meta:
         db_table = "DetalleFactura"
@@ -144,7 +146,7 @@ class DetalleFactura(models.Model):
 
 class TarifaIVA(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
-    porcentaje = models.DecimalField(max_digits=10, decimal_places=2)
+    porcentaje = models.DecimalField(max_digits=25, decimal_places=2)
     fecha_inicial = models.DateField(default=timezone.localdate)
     fecha_final = models.DateField(null=True)
     estado = models.BooleanField(default=True)
@@ -159,8 +161,9 @@ class PrecioVentaProducto(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, db_column="id_producto")
     tarifa_IVA = models.ForeignKey(TarifaIVA, on_delete=models.CASCADE, db_column="id_tarifa_IVA")
-    cantidad = models.JSONField()
-    precio = models.DecimalField(max_digits=10, decimal_places=2)
+    unidad_medida = models.ForeignKey(UnidadMedida, on_delete=models.CASCADE, db_column="id_unidad_medida")
+    cantidad = models.DecimalField(max_digits=25, decimal_places=5)
+    precio = models.DecimalField(max_digits=25, decimal_places=2)
     fecha_inicial = models.DateField(default=timezone.localdate)
     fecha_final = models.DateField(null=True)
     estado = models.BooleanField(default=True)
@@ -186,7 +189,7 @@ class DetalleLocal(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     local = models.ForeignKey(Local, on_delete=models.CASCADE, db_column="id_local")
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, db_column="id_producto")
-    cantidad = models.JSONField()
+    cantidad_en_gramos = models.DecimalField(max_digits=25, decimal_places=5)
 
     class Meta:
         db_table = "DetalleLocal"
@@ -209,7 +212,8 @@ class DetalleEnvio(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     envio = models.ForeignKey(Envio, on_delete=models.CASCADE, db_column="id_envio")
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, db_column="id_producto")
-    cantidad = models.JSONField()
+    unidad_medida = models.ForeignKey(UnidadMedida, on_delete=models.CASCADE, db_column="id_unidad_medida")
+    cantidad = models.DecimalField(max_digits=25, decimal_places=5)
 
     class Meta:
         db_table = "DetalleEnvio"
@@ -231,9 +235,12 @@ class Proveedor(models.Model):
 class Pedido(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.CASCADE, db_column="id_proveedor")
+    empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, db_column="id_empleado")
+    total = models.DecimalField(max_digits=25, decimal_places=2)
+    total_IVA = models.DecimalField(max_digits=25, decimal_places=2)
     fecha_realizado = models.DateField(default=timezone.localdate)
     fecha_recibido = models.DateField(null=True)
-    estado = models.BooleanField(default=False)
+    estado = models.TextField(default="PENDIENTE")
 
     class Meta:
         db_table = "Pedido"
@@ -245,7 +252,10 @@ class DetallePedido(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE, db_column="id_producto")
     pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, db_column="id_pedido")
-    cantidad = models.JSONField()
+    unidad_medida = models.ForeignKey(UnidadMedida, on_delete=models.CASCADE, db_column="id_unidad_medida")
+    cantidad = models.DecimalField(max_digits=25, decimal_places=5)
+    subtotal = models.DecimalField(max_digits=25, decimal_places=2)
+    subtotal_IVA = models.DecimalField(max_digits=25, decimal_places=2)
 
     class Meta:
         db_table = "DetallePedido"
@@ -253,9 +263,27 @@ class DetallePedido(models.Model):
         verbose_name_plural = "Detalles de Pedido"
 
 
+class PrecioCompraProducto(models.Model):
+    id = models.AutoField(primary_key=True, editable=False)
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE, db_column="id_producto")
+    proveedor = models.ForeignKey(Proveedor, on_delete=models.CASCADE, db_column="id_proveedor")
+    tarifa_IVA = models.ForeignKey(TarifaIVA, on_delete=models.CASCADE, db_column="id_tarifa_IVA")
+    unidad_medida = models.ForeignKey(UnidadMedida, on_delete=models.CASCADE, db_column="id_unidad_medida")
+    cantidad = models.DecimalField(max_digits=25, decimal_places=5)
+    precio = models.DecimalField(max_digits=25, decimal_places=2)
+    fecha_inicial = models.DateField(default=timezone.localdate)
+    fecha_final = models.DateField(null=True)
+    estado = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "PrecioCompraProducto"
+        verbose_name = "Precio de Compra de Producto"
+        verbose_name_plural = "Precios de Compra de Producto"
+
+
 class Cargo(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
-    nombre = models.TextField()
+    nombre = models.TextField(unique=True, editable=False)
     descripcion = models.TextField()
     estado = models.BooleanField(default=True)
 
@@ -269,10 +297,11 @@ class Contrato(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     empleado = models.ForeignKey(Empleado, on_delete=models.CASCADE, db_column="id_empleado")
     cargo = models.ForeignKey(Cargo, on_delete=models.CASCADE, db_column="id_cargo")
+    local = models.ForeignKey(Local, on_delete=models.CASCADE, db_column="id_local")
     fecha_inicial = models.DateField(default=timezone.localdate)
     fecha_terminacion = models.DateField(default=None, null=True)
     fecha_final = models.DateField(null=True, blank=True)
-    salario = models.DecimalField(max_digits=10, decimal_places=2)
+    salario = models.DecimalField(max_digits=25, decimal_places=2)
     frecuencia_pago = models.TextField()
     estado = models.BooleanField(default=True)
 
@@ -295,7 +324,7 @@ class Nomina(models.Model):
 
 class Reduccion(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
-    nombre = models.TextField(unique=True)
+    nombre = models.TextField(unique=True, editable=False)
     descripcion = models.TextField()
 
     class Meta:
@@ -308,7 +337,7 @@ class DetalleReduccion(models.Model):
     id = models.AutoField(primary_key=True, editable=False)
     nomina = models.ForeignKey(Nomina, on_delete=models.CASCADE, db_column="id_nomina")
     reduccion = models.ForeignKey(Reduccion, on_delete=models.CASCADE, db_column="id_reduccion")
-    total = models.DecimalField(max_digits=10, decimal_places=2)
+    total = models.DecimalField(max_digits=25, decimal_places=2)
 
     class Meta:
         db_table = "DetalleReduccion"

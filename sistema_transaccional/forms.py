@@ -4,7 +4,7 @@ import phonenumbers
 from django import forms
 from django.forms import formset_factory
 
-from sistema_transaccional.models import Producto, Cargo, PrecioVentaProducto
+from sistema_transaccional.models import Producto, Cargo, PrecioVentaProducto, FormaPago
 from sistema_transaccional.utils import obtener_prefijos_con_nombre
 
 
@@ -12,19 +12,6 @@ class FormularioLogin(forms.Form):
     correo = forms.CharField(label="Correo electrónico", max_length=100, widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "Correo electrónico", "title": "Ingresa tu correo electrónico"}))
     clave = forms.CharField(label="Clave", max_length=100, widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "Clave", "title": "Ingresa tu clave"}))
     se_solicita_sesion_administrativa = forms.BooleanField(label="Sesión administrativa", label_suffix="",required=False, widget=forms.CheckboxInput(attrs={"class": "form-check-input", "title": "Chequea esto si quieres acceder como administrador"}))
-
-
-class FormularioProductoCaja(forms.Form):
-    producto = forms.ChoiceField(label="Producto", widget=forms.Select(attrs={"class": "form-select"}))
-    unidad = forms.ChoiceField(label="Unidad", widget=forms.Select(attrs={"class": "form-select"}))
-    magnitud = forms.DecimalField(label="Magnitud", min_value=0, decimal_places=2, widget=forms.NumberInput(attrs={"class": "form-control", "title": "Ingresa una cantidad"}))
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        precio_venta_productos = PrecioVentaProducto.objects.filter(estado=True)
-        self.fields["producto"].choices = ((precio_venta_producto.id, precio_venta_producto.producto.nombre) for precio_venta_producto in precio_venta_productos)
-        unidades = [("g", "Gramos")]
-        self.fields["unidad"].choices = ((unidad[0], unidad[1]) for unidad in unidades)
 
 
 class FormularioContratacionEmpleados(forms.Form):

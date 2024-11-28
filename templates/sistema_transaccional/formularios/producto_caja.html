@@ -1,22 +1,25 @@
-<form class="m-3 row" hx-post="{% url 'sistema_transaccional:componente_producto_caja' %}" hx-target="#contenedor-lista-productos-caja" hx-swap="innerHTML">
-    {% csrf_token %}
-    {{ formulario.non_field_errors }}
+<div class="m-3 row formulario-producto-caja" data-indice="{{ formulario.indice|default_if_none:"__indice__" }}">
     <div class="form-group col">
-        {{ formulario.producto.errors }}
-        <label class="form-label" for="{{ formulario.producto.id_for_label }}">{{ formulario.producto.label }}</label>
-        {{ formulario.producto }}
+        <label class="form-label" for="id-producto-{{ formulario.indice|default_if_none:"__indice__" }}-caja">Producto</label>
+        <select class="form-select" name="id-producto-{{ formulario.indice|default_if_none:"__indice__" }}-caja" id="id-producto-{{ formulario.indice|default_if_none:"__indice__" }}-caja">
+            {% for producto in productos %}
+                <option value="{{ producto.id }}" {% if formulario.id_producto == producto.id %}selected{% endif %}>{{ producto.nombre }}</option>
+            {% endfor %}
+        </select>
     </div>
     <div class="form-group col-2">
-        {{ formulario.unidad.errors }}
-        <label class="form-label" for="{{ formulario.unidad.id_for_label }}">{{ formulario.unidad.label }}</label>
-        {{ formulario.unidad }}
+        <label class="form-label" for="abreviacion-unidad-medida-{{ formulario.indice|default_if_none:"__indice__" }}-caja">Unidad</label>
+        <select class="form-select" name="abreviacion-unidad-medida-{{ formulario.indice|default_if_none:"__indice__" }}-caja" id="abreviacion-unidad-medida-{{ formulario.indice|default_if_none:"__indice__" }}-caja">
+            {% for unidad_medida in unidades_medida %}
+                <option value="{{ unidad_medida.abreviacion }}" {% if formulario.abreviacion_unidad_medida == unidad_medida.abreviacion %}selected{% endif %}>{{ unidad_medida.nombre|lower|capfirst }}</option>
+            {% endfor %}
+        </select>
     </div>
     <div class="form-group col-2">
-        {{ formulario.magnitud.errors }}
-        <label class="form-label" for="{{ formulario.magnitud.id_for_label }}">{{ formulario.magnitud.label }}</label>
-        {{ formulario.magnitud }}
+        <label class="form-label" for="cantidad-{{ formulario.indice|default_if_none:"__indice__" }}-caja">Magnitud</label>
+        <input class="form-control" type="number" min="0" step="0.00001" name="cantidad-{{ formulario.indice|default_if_none:"__indice__" }}-caja" id="cantidad-{{ formulario.indice|default_if_none:"__indice__" }}-caja" value="{{ formulario.cantidad }}">
     </div>
-    <div class="d-flex align-items-end col-1" id="boton-agregar-producto-caja">
-        <input class="btn btn-success" type="submit" value="OK">
+    <div class="d-flex justify-content-center align-items-end col-auto">
+        <button class="btn btn-danger bi bi-trash">Eliminar</button>
     </div>
-</form>
+</div>

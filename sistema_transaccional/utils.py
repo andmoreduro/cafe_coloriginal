@@ -1,10 +1,8 @@
-import sys
-
 import phonenumbers, pycountry
 from babel import Locale
 from django.contrib import messages
-from django.http import HttpRequest, HttpResponse
-from django.shortcuts import redirect
+from django.http import HttpRequest
+from django.utils import timezone
 
 from sistema_transaccional.exceptions import SesionNoCacheada
 from sistema_transaccional.models import Sesion
