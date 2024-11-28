@@ -304,6 +304,8 @@ class Contrato(models.Model):
     salario = models.DecimalField(max_digits=25, decimal_places=2)
     frecuencia_pago = models.TextField()
     estado = models.BooleanField(default=True)
+    def __str__(self):
+        return f"{self.empleado.nombre} - {self.cargo.nombre}"
 
     class Meta:
         db_table = "Contrato"

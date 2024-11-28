@@ -1,8 +1,8 @@
 import sys
-
+from .models import Nomina
 import phonenumbers
 from django import forms
-from django.forms import formset_factory
+from django.db import models
 
 from sistema_transaccional.models import Producto, Cargo, PrecioVentaProducto, FormaPago
 from sistema_transaccional.utils import obtener_prefijos_con_nombre
@@ -44,3 +44,11 @@ class FormularioContratacionEmpleados(forms.Form):
         numero_completo = phonenumbers.parse(f"+{prefijo_limpio} {numero_limpio}", None)
         if not phonenumbers.is_valid_number(numero_completo):
             raise forms.ValidationError("El número ingresado no es válido")
+
+class NominaForm(forms.ModelForm):
+    class Meta:
+        model = Nomina
+        fields = ['fecha_pago', 'contrato']  
+        widgets = {
+            'fecha_pago': forms.DateInput(attrs={'type': 'date'}),
+        }

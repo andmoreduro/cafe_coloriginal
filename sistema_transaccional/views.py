@@ -4,12 +4,16 @@ import sys
 
 from django.contrib import messages
 from django.db import transaction, IntegrityError
+from django.forms import formset_factory
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render, redirect
 from django.utils import timezone
 
+from .models import Nomina
+from .forms import NominaForm 
+
 from sistema_transaccional.exceptions import SesionNoCacheada
-from sistema_transaccional.forms import FormularioLogin, FormularioContratacionEmpleados
+from sistema_transaccional.forms import FormularioLogin, FormularioContratacionEmpleados 
 from sistema_transaccional.models import Credencial, Sesion, DetallePermiso, Permiso, Empleado, Contrato, \
     Cargo, Producto, UnidadMedida, Factura, FormaPago, PrecioVentaProducto, DetalleFactura, Proveedor, DetalleLocal, \
     Pedido, PrecioCompraProducto, DetallePedido
@@ -382,3 +386,29 @@ def contratacion(request: HttpRequest) -> HttpResponse:
             contexto["formulario"] = FormularioContratacionEmpleados()
             messages.success(request, f"Se ha contratado exitosamente al empleado {nombre}")
     return render(request, "sistema_transaccional/contratacion.html", contexto)
+
+def vista_nomina(request):
+    sesion = obtener_sesion(request)
+    if sesion is None:
+        return redirect("sistema_transaccional:login")
+    if not sesion.es_administrativa:
+        messages.error(request, "Para acceder a las funciones del administrador es necesario iniciar sesión como tal")
+        return redirect("sistema_transaccional:vista_empleado")
+
+    # Listar nóminas
+    nominas = Nomina.objects.all()
+
+    if request.method == "POST":
+        form = NominaForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Nómina creada exitosamente.")
+            return redirect("sistema_transaccional:vista_nomina")
+    else:
+        form = NominaForm()
+
+    context = {
+        'nominas': nominas,
+        'form': form,
+    }
+    return render(request, "sistema_transaccional/nomina.html", context)
