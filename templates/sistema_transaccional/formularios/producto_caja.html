@@ -2,8 +2,8 @@
     <div class="form-group col">
         <label class="form-label" for="id-producto-{{ formulario.indice|default_if_none:"__indice__" }}-caja">Producto</label>
         <select class="form-select" name="id-producto-{{ formulario.indice|default_if_none:"__indice__" }}-caja" id="id-producto-{{ formulario.indice|default_if_none:"__indice__" }}-caja">
-            {% for producto in productos %}
-                <option value="{{ producto.id }}" {% if formulario.id_producto == producto.id %}selected{% endif %}>{{ producto.nombre }}</option>
+            {% for producto, stock_producto in productos %}
+                <option value="{{ producto.id }}" {% if formulario.id_producto == producto.id %}selected{% endif %}>{{ producto.nombre }} ({{ stock_producto }} gramos disponibles)</option>
             {% endfor %}
         </select>
     </div>

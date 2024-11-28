@@ -129,6 +129,12 @@ def caja(request: HttpRequest) -> HttpResponse:
     except DetallePermiso.DoesNotExist:
         messages.error(request, "No se poseen los permisos de caja")
         return redirect("sistema_transaccional:vista_empleado")
+    productos = Producto.objects.all()
+    stock_productos = []
+    local = Contrato.objects.get(empleado=sesion.credencial.empleado, estado=True).local
+    for producto in productos:
+        detalle_local = DetalleLocal.objects.get(local=local, producto=producto)
+        stock_productos.append(detalle_local.cantidad_en_gramos)
     contexto = {
         "formulario_cliente": {
             "cedula_cliente": "",
@@ -142,7 +148,7 @@ def caja(request: HttpRequest) -> HttpResponse:
             "indice": None
         },
         "formularios_producto": [],
-        "productos": Producto.objects.all(),
+        "productos": zip(productos, stock_productos),
         "unidades_medida": UnidadMedida.objects.all(),
         "compra_completada": False,
         "detalles_factura": [],
@@ -185,7 +191,6 @@ def caja(request: HttpRequest) -> HttpResponse:
                 "indice": i,
             })
         if not hubo_error:
-            local = Contrato.objects.get(empleado=sesion.credencial.empleado, estado=True).local
             factura = Factura(empleado=sesion.credencial.empleado, forma_pago=FormaPago.objects.get(id=id_forma_pago),
                               cedula_cliente=cedula_cliente, total=0, total_IVA=0)
             factura.save()
@@ -219,6 +224,7 @@ def caja(request: HttpRequest) -> HttpResponse:
             factura.total = total
             factura.total_IVA = total_IVA
             factura.save()
+
             contexto["cedula_cliente"] = cedula_cliente
             contexto["compra_completada"] = True
             contexto["empleado"] = sesion.credencial.empleado
